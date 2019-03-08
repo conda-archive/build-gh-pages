@@ -1,3 +1,4 @@
+conda/
 secrets.json
 node_modules/
 venv/
