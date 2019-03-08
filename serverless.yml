@@ -1,16 +1,24 @@
-service: build-gh-pages # NOTE: update this with your service name
+service: build-gh-pages
 
 provider:
   name: aws
   runtime: python3.6
+  environment:
+    github_token: ${self:custom.secrets.github_token}
 
 functions:
   build_docs:
     handler: handler.build_docs
+    events:
+      - http:
+          path: build_docs
+          method: post
+          cors: true
 
 plugins:
   - serverless-python-requirements
 
 custom:
+  secrets: ${file(secrets.json)}
   pythonRequirements:
     dockerizePip: non-linux
