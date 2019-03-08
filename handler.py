@@ -58,12 +58,20 @@ def build_docs(event, context):
     if not docs_files_changed(pr_number):
         response_body = "no docs changes"
     else:
-        # repo_path = "/tmp/conda"
-        # shutil.rmtree(repo_path)
-        # git.exec_command("clone", github_repo, repo_path)
-        # os.chdir(repo_path)
-        # git.exec_command("fetch", "origin", "+refs/pull/%s/head:pr/%s" % (pr_number, pr_number))
-        # git.exec_command("checkout", "pr/%s" % pr_number)
+        repo_path = "/tmp/conda"
+        try:
+            shutil.rmtree(repo_path)
+        except FileNotFoundError:
+            # It's ok if file was not found, didn't want the file anyway
+            pass
+        print("cloning repo")
+        git.exec_command("clone", github_repo, repo_path)
+        print("chdir")
+        os.chdir(repo_path)
+        print("fetch")
+        git.exec_command("fetch", "origin", "+refs/pull/%s/head:pr/%s" % (pr_number, pr_number), cwd=repo_path)
+        print("checkout pr")
+        git.exec_command("checkout", "pr/%s" % pr_number, cwd=repo_path)
         response_body = "building docs change"
 
     response = {

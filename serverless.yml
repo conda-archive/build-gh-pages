@@ -3,6 +3,7 @@ service: build-gh-pages
 provider:
   name: aws
   runtime: python3.6
+  timeout: 200
   environment:
     github_token: ${self:custom.secrets.github_token}
 
