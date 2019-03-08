@@ -4,6 +4,8 @@ import hmac
 import git
 import os
 import base64
+import requests
+import shutil
 
 
 def validate_signature(headers, event_body, github_token):
@@ -15,6 +17,15 @@ def validate_signature(headers, event_body, github_token):
     digest = hmac.new(github_token.encode(), event_body.encode(), hashlib.sha1).hexdigest()
     if not hmac.compare_digest(digest.encode(), sha1.encode()):
         return "Not Authorized"
+
+
+def docs_files_changed(pr_number):
+    file_endpoint = "https://api.github.com/repos/conda/conda/pulls/%s/files" % (pr_number)
+    files = json.loads(requests.get(file_endpoint).content)
+    for file in files:
+        if "docs" in file["filename"]:
+            return True
+    return False
 
 def build_docs(event, context):
     github_token = os.environ["github_token"]
@@ -44,14 +55,22 @@ def build_docs(event, context):
     github_repo = json_payload["repository"]['html_url']
     pr_number = json_payload["number"]
 
-    repo_path = os.path.join(os.getcwd(), "conda")
-    git.exec_command("clone", github_repo, repo_path)
-    os.chdir("conda")
+    if not docs_files_changed(pr_number):
+        response_body = "no docs changes"
+    else:
+        # repo_path = "/tmp/conda"
+        # shutil.rmtree(repo_path)
+        # git.exec_command("clone", github_repo, repo_path)
+        # os.chdir(repo_path)
+        # git.exec_command("fetch", "origin", "+refs/pull/%s/head:pr/%s" % (pr_number, pr_number))
+        # git.exec_command("checkout", "pr/%s" % pr_number)
+        response_body = "building docs change"
 
     response = {
         "statusCode": 200,
-        "body": json.dumps(event)
+        "body": json.dumps(response_body)
     }
+    print(response)
 
     return response
 
