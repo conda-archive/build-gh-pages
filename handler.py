@@ -6,6 +6,7 @@ import os
 import base64
 import requests
 import shutil
+from sphinx.application import Sphinx
 
 
 def validate_signature(headers, event_body, github_token):
@@ -29,6 +30,7 @@ def docs_files_changed(pr_number):
 
 def build_docs(event, context):
     github_token = os.environ["github_token"]
+    SPHINXBUILD = os.getenv('SPHINXBUILD', 'sphinx-build')
     headers = event["headers"]
 
     # Make sure request came from github
@@ -64,18 +66,25 @@ def build_docs(event, context):
         except FileNotFoundError:
             # It's ok if file was not found, didn't want the file anyway
             pass
-        print("cloning repo")
         git.exec_command("clone", github_repo, repo_path)
-        print("chdir")
         os.chdir(repo_path)
-        print("fetch")
         git.exec_command("fetch", "origin", "+refs/pull/%s/head:pr/%s" % (pr_number, pr_number), cwd=repo_path)
-        print("checkout pr")
         git.exec_command("checkout", "pr/%s" % pr_number, cwd=repo_path)
+        
+
+        docs_path = os.path.join(repo_path, "docs/source")
+        confdir = docs_path
+        build_output = os.path.join(repo_path, "pr-%s" % (pr_number))
+        doctreedir = os.path.join(build_output, "doctrees")
+        builder = "html"
+
+        app = Sphinx(docs_path, confdir, build_output, doctreedir, builder)
+        app.build()
+
         response_body = "building docs change"
 
     response = {
-        "statusCode": 200,
+        "statusCode": 202,
         "body": json.dumps(response_body)
     }
     print(response)
