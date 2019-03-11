@@ -4,6 +4,11 @@ provider:
   name: aws
   runtime: python3.6
   timeout: 200
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource: "*"
   environment:
     github_token: ${self:custom.secrets.github_token}
 
@@ -15,6 +20,8 @@ functions:
           path: build_docs
           method: post
           cors: true
+  build:
+    handler: handler.build
 
 plugins:
   - serverless-python-requirements
