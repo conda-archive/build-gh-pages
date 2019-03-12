@@ -10,7 +10,7 @@ provider:
         - lambda:InvokeFunction
       Resource: "*"
   environment:
-    github_token: ${self:custom.secrets.github_token}
+    github_token: ${ssm:github_webhook_token}
 
 functions:
   build_docs:
@@ -27,6 +27,10 @@ plugins:
   - serverless-python-requirements
 
 custom:
-  secrets: ${file(secrets.json)}
+  serverlessSecrets:
+    providerOptions:
+      region: us-east-1
+    keys:
+      default: "alias/build_docs_conda"
   pythonRequirements:
     dockerizePip: non-linux
