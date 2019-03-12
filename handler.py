@@ -3,6 +3,7 @@ import os, shutil
 import base64, requests
 from sphinx.application import Sphinx
 from boto3 import client as boto3_client
+import re
 
 
 lambda_client = boto3_client('lambda', region_name="us-east-1",)
@@ -59,20 +60,38 @@ def build(event, context):
     docs_path = os.path.join(repo_path, "docs/source")
     confdir = docs_path
     build_output = os.path.join(repo_path, "pr-%s" % (pr_number))
-    doctreedir = os.path.join(build_output, "doctrees")
+    doctreedir = os.path.join("/tmp")
     builder = "html"
 
     app = Sphinx(docs_path, confdir, build_output, doctreedir, builder)
     app.build()
+    objects_inv_path = os.path.join(build_output, "objects.inv")
+    os.remove(objects_inv_path)
 
-    git.exec_command("checkout", "gh-pages", cwd=repo_path)
     git.exec_command("add", "pr-%s" % pr_number, cwd=repo_path)
+    print(os.listdir(repo_path))
     commit_env = os.environ
     commit_env['GIT_AUTHOR_NAME'] = github_user
     commit_env['GIT_AUTHOR_EMAIL'] = github_email
     commit_env['GIT_COMMITTER_NAME'] = github_user
     commit_env['GIT_COMMITTER_EMAIL'] = github_email
+    # could stash instead
     git.exec_command("commit", "-m docs for pr %s" % pr_number, cwd=repo_path, env=commit_env)
+    print(os.listdir(repo_path))
+    log = git.exec_command("log", cwd=repo_path)[0].decode("utf-8")
+    dirty_commit = re.search('commit [\d\w]{40}', log).group(0)
+    commit = dirty_commit.split(" ")[1]
+    git.exec_command("checkout", "gh-pages", cwd=repo_path)
+    print(os.listdir(repo_path))
+
+    if os.path.exists(build_output):
+        print("removing dir %s" % (build_output))
+        git.exec_command("rm", "-r", "pr-%s" % pr_number, cwd=repo_path)
+        git.exec_command("commit", "-m remove old docs for %s" % pr_number, cwd=repo_path, env=commit_env)
+
+    print(os.listdir(repo_path))
+    git.exec_command("cherry-pick", commit, cwd=repo_path)
+    print(os.listdir(repo_path))
     git.exec_command("push", "origin", "gh-pages", cwd=repo_path)
 
     response_body = "built docs change"
