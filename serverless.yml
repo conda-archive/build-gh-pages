@@ -3,14 +3,15 @@ service: build-gh-pages
 provider:
   name: aws
   runtime: python3.6
-  timeout: 200
   iamRoleStatements:
     - Effect: Allow
       Action:
         - lambda:InvokeFunction
       Resource: "*"
-  environment:
-    github_token: ${ssm:github_webhook_token}
+    - Effect: Allow
+      Action:
+        - ssm:GetParameter
+      Resource: "*"
 
 functions:
   build_docs:
@@ -20,17 +21,26 @@ functions:
           path: build_docs
           method: post
           cors: true
+    environment:
+      github_webhook_token: ${ssm:github_webhook_token}
   build:
     handler: handler.build
+    timeout: 200
+    environment:
+      github_bot_token: ${ssm:conda_bot_token}
+      github_user: conda-bot
+      github_email: distro@anaconda.com
+  # clean_up:
+  #   handler: handler.clean_up
+  #   timeout: 200
+  #   environment:
+  #     github_bot_token: ${ssm:conda_bot_token}
+  #     github_user: conda-bot
+  #     github_email: distro@anaconda.com
 
 plugins:
   - serverless-python-requirements
 
 custom:
-  serverlessSecrets:
-    providerOptions:
-      region: us-east-1
-    keys:
-      default: "alias/build_docs_conda"
   pythonRequirements:
     dockerizePip: non-linux
