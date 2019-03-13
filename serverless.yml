@@ -30,13 +30,13 @@ functions:
       github_bot_token: ${ssm:conda_bot_token}
       github_user: conda-bot
       github_email: distro@anaconda.com
-  # clean_up:
-  #   handler: handler.clean_up
-  #   timeout: 200
-  #   environment:
-  #     github_bot_token: ${ssm:conda_bot_token}
-  #     github_user: conda-bot
-  #     github_email: distro@anaconda.com
+  clean_up:
+    handler: handler.clean_up
+    timeout: 200
+    environment:
+      github_bot_token: ${ssm:conda_bot_token}
+      github_user: conda-bot
+      github_email: distro@anaconda.com
 
 plugins:
   - serverless-python-requirements

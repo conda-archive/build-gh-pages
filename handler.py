@@ -103,6 +103,37 @@ def build(event, context):
     print(response)
     return response
 
+def clean_up(event, context):
+    json_payload = json.loads(event["body"])
+    github_repo = json_payload["repository"]['html_url']
+    trimed_github_repo = github_repo.split("//")[1]
+    pr_number = json_payload["number"]
+    repo_path = "/tmp/conda"
+    conda_bot_token = get_secret("conda_bot_token")
+    github_user = os.getenv("github_user")
+    github_email = os.getenv("github_email")
+    authed_repo = "https://%s:%s@%s" % (github_user, conda_bot_token, trimed_github_repo)
+
+    git.exec_command("clone", authed_repo, repo_path)
+    git.exec_command("checkout", "gh-pages", cwd=repo_path)
+    pr_docs_path = os.path.join(repo_path, "pr-%s" % (pr_number))
+    git.exec_command("rm", "-r", "pr-%s" % pr_number, cwd=repo_path)
+    commit_env = os.environ
+    commit_env['GIT_AUTHOR_NAME'] = github_user
+    commit_env['GIT_AUTHOR_EMAIL'] = github_email
+    commit_env['GIT_COMMITTER_NAME'] = github_user
+    commit_env['GIT_COMMITTER_EMAIL'] = github_email
+    git.exec_command("commit", "-m remove docs for pr %s" % pr_number, cwd=repo_path, env=commit_env)
+    git.exec_command("push", "origin", "gh-pages", cwd=repo_path)
+
+    response_body = "cleaned up gh-pages"
+    response = {
+        "statusCode": 200,
+        "body": json.dumps(response_body)
+    }
+    print(response)
+    return response
+
 
 def build_docs(event, context):
     github_webhook_token = get_secret("github_webhook_token")
@@ -132,7 +163,16 @@ def build_docs(event, context):
     pr_number = json_payload["number"]
     action = json_payload["action"]
 
-    if not docs_files_changed(pr_number):
+    if action == "closed":
+        print("passing off build")
+        # build(event, context)
+        lambda_client.invoke(
+            FunctionName="build-gh-pages-dev-clean_up",
+            InvocationType='Event',
+            Payload=json.dumps(event)
+        )
+        response_body = "removing old docs"
+    elif not docs_files_changed(pr_number):
         response_body = "no docs changes"
     else:
         print("passing off build")
