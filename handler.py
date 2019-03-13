@@ -26,8 +26,8 @@ def validate_signature(headers, event_body, github_webhook_token):
         return "Not Authorized"
 
 
-def docs_files_changed(pr_number):
-    file_endpoint = "https://api.github.com/repos/conda/conda/pulls/%s/files" % (pr_number)
+def docs_files_changed(api_endpoint):
+    file_endpoint = "%s/files" % (api_endpoint)
     files = json.loads(requests.get(file_endpoint).content)
     for file in files:
         if "docs" in file["filename"]:
@@ -162,6 +162,7 @@ def build_docs(event, context):
     github_repo = json_payload["repository"]['html_url']
     pr_number = json_payload["number"]
     action = json_payload["action"]
+    api_endpoint = json_payload["pull_request"]["url"]
 
     if action == "closed":
         print("passing off build")
@@ -172,7 +173,7 @@ def build_docs(event, context):
             Payload=json.dumps(event)
         )
         response_body = "removing old docs"
-    elif not docs_files_changed(pr_number):
+    elif not docs_files_changed(api_endpoint):
         response_body = "no docs changes"
     else:
         print("passing off build")
