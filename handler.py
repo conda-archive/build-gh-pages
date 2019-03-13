@@ -35,27 +35,36 @@ def docs_files_changed(api_endpoint):
     return False
 
 
+def get_commit_env(github_user, github_email):
+    commit_env = os.environ
+    commit_env['GIT_AUTHOR_NAME'] = github_user
+    commit_env['GIT_AUTHOR_EMAIL'] = github_email
+    commit_env['GIT_COMMITTER_NAME'] = github_user
+    commit_env['GIT_COMMITTER_EMAIL'] = github_email
+    return commit_env
+
 def build(event, context):
     SPHINXBUILD = os.getenv('SPHINXBUILD', 'sphinx-build')
     json_payload = json.loads(event["body"])
     github_repo = json_payload["repository"]['html_url']
-    trimed_github_repo = github_repo.split("//")[1]
-    pr_number = json_payload["number"]
-    repo_path = "/tmp/conda"
+    print(github_repo)
+    project = json_payload["pull_request"]["head"]["repo"]["name"]
+    repo_path = "/tmp/%s" % project
+    print(repo_path)
     try:
         shutil.rmtree(repo_path)
     except FileNotFoundError:
         pass
-
+    trimed_github_repo = github_repo.split("//")[1]
+    pr_number = json_payload["number"]
     conda_bot_token = get_secret("conda_bot_token")
     github_user = os.getenv("github_user")
     github_email = os.getenv("github_email")
     authed_repo = "https://%s:%s@%s" % (github_user, conda_bot_token, trimed_github_repo)
 
     git.exec_command("clone", authed_repo, repo_path)
-    os.chdir(repo_path)
     git.exec_command("fetch", "origin", "+refs/pull/%s/head:pr/%s" % (pr_number, pr_number), cwd=repo_path)
-    git.exec_command("checkout", "pr/%s" % pr_number, cwd=repo_path)
+    git.exec_command("checkout", "pr/%s" % pr_number, "--force", cwd=repo_path)
 
     docs_path = os.path.join(repo_path, "docs/source")
     confdir = docs_path
@@ -69,29 +78,19 @@ def build(event, context):
     os.remove(objects_inv_path)
 
     git.exec_command("add", "pr-%s" % pr_number, cwd=repo_path)
-    print(os.listdir(repo_path))
-    commit_env = os.environ
-    commit_env['GIT_AUTHOR_NAME'] = github_user
-    commit_env['GIT_AUTHOR_EMAIL'] = github_email
-    commit_env['GIT_COMMITTER_NAME'] = github_user
-    commit_env['GIT_COMMITTER_EMAIL'] = github_email
-    # could stash instead
+    commit_env = get_commit_env(github_user, github_email)
     git.exec_command("commit", "-m docs for pr %s" % pr_number, cwd=repo_path, env=commit_env)
-    print(os.listdir(repo_path))
     log = git.exec_command("log", cwd=repo_path)[0].decode("utf-8")
     dirty_commit = re.search('commit [\d\w]{40}', log).group(0)
     commit = dirty_commit.split(" ")[1]
-    git.exec_command("checkout", "gh-pages", cwd=repo_path)
-    print(os.listdir(repo_path))
+    git.exec_command("checkout", "gh-pages", "--force", cwd=repo_path)
 
     if os.path.exists(build_output):
         print("removing dir %s" % (build_output))
         git.exec_command("rm", "-r", "pr-%s" % pr_number, cwd=repo_path)
         git.exec_command("commit", "-m remove old docs for %s" % pr_number, cwd=repo_path, env=commit_env)
 
-    print(os.listdir(repo_path))
     git.exec_command("cherry-pick", commit, cwd=repo_path)
-    print(os.listdir(repo_path))
     git.exec_command("push", "origin", "gh-pages", cwd=repo_path)
 
     response_body = "built docs change"
@@ -106,23 +105,22 @@ def build(event, context):
 def clean_up(event, context):
     json_payload = json.loads(event["body"])
     github_repo = json_payload["repository"]['html_url']
+    print(github_repo)
+    project = json_payload["pull_request"]["head"]["repo"]["name"]
+    repo_path = "/tmp/%s" % project
+    print(repo_path)
     trimed_github_repo = github_repo.split("//")[1]
     pr_number = json_payload["number"]
-    repo_path = "/tmp/conda"
     conda_bot_token = get_secret("conda_bot_token")
     github_user = os.getenv("github_user")
     github_email = os.getenv("github_email")
     authed_repo = "https://%s:%s@%s" % (github_user, conda_bot_token, trimed_github_repo)
 
     git.exec_command("clone", authed_repo, repo_path)
-    git.exec_command("checkout", "gh-pages", cwd=repo_path)
+    git.exec_command("checkout", "gh-pages", "--force", cwd=repo_path)
     pr_docs_path = os.path.join(repo_path, "pr-%s" % (pr_number))
     git.exec_command("rm", "-r", "pr-%s" % pr_number, cwd=repo_path)
-    commit_env = os.environ
-    commit_env['GIT_AUTHOR_NAME'] = github_user
-    commit_env['GIT_AUTHOR_EMAIL'] = github_email
-    commit_env['GIT_COMMITTER_NAME'] = github_user
-    commit_env['GIT_COMMITTER_EMAIL'] = github_email
+    commit_env = get_commit_env(github_user, github_email)
     git.exec_command("commit", "-m remove docs for pr %s" % pr_number, cwd=repo_path, env=commit_env)
     git.exec_command("push", "origin", "gh-pages", cwd=repo_path)
 
@@ -160,6 +158,7 @@ def build_docs(event, context):
 
     json_payload = json.loads(event["body"])
     github_repo = json_payload["repository"]['html_url']
+    print(github_repo)
     pr_number = json_payload["number"]
     action = json_payload["action"]
     api_endpoint = json_payload["pull_request"]["url"]
