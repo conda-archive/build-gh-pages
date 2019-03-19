@@ -87,7 +87,7 @@ def build(event, context):
 
     if os.path.exists(build_output):
         print("removing dir %s" % (build_output))
-        git.exec_command("rm", "-r", "pr-%s" % pr_number, cwd=repo_path)
+        git.exec_command("rm", "-rf", "pr-%s" % pr_number, cwd=repo_path)
         git.exec_command("commit", "-m remove old docs for %s" % pr_number, cwd=repo_path, env=commit_env)
 
     git.exec_command("cherry-pick", commit, cwd=repo_path)
@@ -109,6 +109,10 @@ def clean_up(event, context):
     project = json_payload["pull_request"]["head"]["repo"]["name"]
     repo_path = "/tmp/%s" % project
     print(repo_path)
+    try:
+        shutil.rmtree(repo_path)
+    except FileNotFoundError:
+        pass
     trimed_github_repo = github_repo.split("//")[1]
     pr_number = json_payload["number"]
     conda_bot_token = get_secret("conda_bot_token")
@@ -119,7 +123,7 @@ def clean_up(event, context):
     git.exec_command("clone", authed_repo, repo_path)
     git.exec_command("checkout", "gh-pages", "--force", cwd=repo_path)
     pr_docs_path = os.path.join(repo_path, "pr-%s" % (pr_number))
-    git.exec_command("rm", "-r", "pr-%s" % pr_number, cwd=repo_path)
+    git.exec_command("rm", "-rf", "pr-%s" % pr_number, cwd=repo_path)
     commit_env = get_commit_env(github_user, github_email)
     git.exec_command("commit", "-m remove docs for pr %s" % pr_number, cwd=repo_path, env=commit_env)
     git.exec_command("push", "origin", "gh-pages", cwd=repo_path)
